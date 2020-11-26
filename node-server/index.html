@@ -1,0 +1,87 @@
+<html>
+    <head>
+        <title>ESPKart</title>
+    </head>
+    <body onload="promptControlStatus()">
+        <img src="">
+        <p id="status">Status: </p>
+        <script>
+            var lastSteering = '0';
+            var lastVelocity = '0';
+
+            const img = document.querySelector('img');
+            const status = document.getElementById('status');
+
+            const WS_URL = 'ws:///192.168.1.200:8989';
+            const ws = new WebSocket(WS_URL);
+            let urlObject;
+            ws.onopen = () => console.log(`Connected to ${WS_URL}`);
+
+            ws.onmessage = message => {
+                //if (message.data instanceof ArrayBuffer) { // binary data
+                    const arrayBuffer = message.data;
+                    if(urlObject){
+                        URL.revokeObjectURL(urlObject);
+                    }
+                    urlObject = URL.createObjectURL(new Blob([arrayBuffer]));
+                    img.src = urlObject;
+                //} else {//ms between server, fps of camera
+                //    let res = message.data.split(",");
+                //    conn.innerHTML = res[0] + "ms, " + res[1] + "fps";
+                //}
+            }
+
+            ws.onclose = message => {
+                img.src = "";
+                //status.innerHTML = 
+            }
+
+            function promptControlStatus() {
+                while(!car_ip){
+                    var car_ip = prompt("Input address of car to control");
+                };
+
+                ws.send("esp-ip=" + car_ip);
+            }
+
+            document.body.addEventListener("keydown", function(event) {
+                // STEERING
+
+                const key = event.key;
+
+                //console.log("keydown: " + key);
+                if (key != lastSteering && (key == 'a' || key == 'd')) {
+                    ws.send("s=" + key);
+                    console.log("sent: s=" + key);
+                    lastSteering = key;
+                    return;
+                }
+                
+                // VELOCITY
+                if (key != lastVelocity && (key == 'ArrowUp' || key == 'ArrowDown')) {
+                    if (key == 'ArrowUp') ws.send("v=f");
+                    else ws.send("v=b");
+        
+                    console.log("sent: v=b/f");
+                    
+                    lastVelocity = key;
+                }
+            });
+
+            document.body.addEventListener("keyup", function(event) {
+                const key = event.key;
+                if (key == 'a' || key == 'd') {
+                    ws.send("s=0");
+                    lastSteering = '0';
+                }
+
+                // throttle
+                if (key == 'ArrowUp' || key == 'ArrowDown') {
+                    ws.send("v=0");
+                    lastVelocity = '0';
+                }
+            });
+
+        </script>
+    </body>
+</html>
