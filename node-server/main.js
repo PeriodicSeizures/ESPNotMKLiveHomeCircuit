@@ -22,12 +22,14 @@ var espClients = new Map(); //[];
 class Controller {
     constructor(ws, owned_esp_addr) {
         this.ws = ws; this.owned_esp_addr = owned_esp_addr;
+        //this.alive = true;
     }
 };
 
 class ESP {
     constructor(ws, owned_controller_addr) {
         this.ws = ws; this.owned_controller_addr = owned_controller_addr;
+        this.alive = true;
     }
 }
 
@@ -45,8 +47,8 @@ function setAsPair(controller_ws, espAddr) {
         DEBUG
     */
 
-    console.log(`${controlClients.get(controlAddr).ws._socket.remoteAddress.toString()}, ${controlClients.get(controlAddr).owned_esp_addr}`);
-    console.log(`${espClients.get(espAddr).ws._socket.remoteAddress.toString()}, ${espClients.get(espAddr).owned_controller_addr}`);
+    //console.log(`${controlClients.get(controlAddr).ws._socket.remoteAddress.toString()}, ${controlClients.get(controlAddr).owned_esp_addr}`);
+    //console.log(`${espClients.get(espAddr).ws._socket.remoteAddress.toString()}, ${espClients.get(espAddr).owned_controller_addr}`);
 
 }
 
@@ -80,7 +82,10 @@ espWsServer.on('connection', (ws, req) => { // when every connected ESP to conne
                 control.ws.send(data);
                 //console.log("sent data to controller");
                 return;
-            }// else {
+            }
+
+
+// else {
              //   espClients.delete(espAddrStr);
              //   controlClients.delete(controllerAddrStr);
             //}
@@ -114,10 +119,6 @@ controlWsServer.on('connection', (ws, req) => { // when every connected ESP to c
     controlClients.set(ws._socket.remoteAddress.toString(), new Controller(ws, ""));
     
     ws.on('message', data => {
-        // Send data to esp
-        
-        console.log(`Data from controller:`);
-        console.log(`  ${data.toString()}`);
         
         if (data.startsWith("esp-ip=")) {
             otherAddrStr = data.toString().substring(7);
@@ -136,24 +137,20 @@ controlWsServer.on('connection', (ws, req) => { // when every connected ESP to c
         if (controller != undefined) { // check is redundant
             espAddrStr = controller.owned_esp_addr
             esp = espClients.get(espAddrStr);
-            console.log(`u-ip: ${espAddrStr}`);
             if (esp == undefined) { // not linked
-                console.log("esp udf");
                 return;
             }
             if (esp.ws.readyState === ws.OPEN) {
                 // then send
                 esp.ws.send(data);
-                console.log("sent data to esp");
                 return;
-            }
-            console.log("none true");
+            }// else console.log(`ESP ${espAddrStr} is disconnected`);
 
 // else {
               //  controlClients.delete(controllerAddr);
              //   espClients.delete(espAddrStr);
             //}
-        } else console.log("ctrl udf");
+        }
     });
 });
 

@@ -1,7 +1,7 @@
 #include <WiFi.h>
 #include <ArduinoWebsockets.h>
 #include <string>
-#include <ESP32ServoPref.h>
+#include <ESP32ServoRW.h>
 
 #include "esp_camera.h"
 #include "camera_pins.h"
@@ -16,17 +16,22 @@ const char* password = "1pbdajb3i7";
 const char* websocket_server_host = "192.168.1.200";
 const uint16_t websocket_server_port = 8888;
 
+// config (can be changed by client)
+uint8_t cfg_m_speed = 195; // motor speed
+int cfg_s_offset = 0;       // servo offset from center
+uint8_t cfg_s_angle = 35;        // max servo turn angle (relative to center)
+
 // Motor
-const int m_in1 = 13;
-const int m_in2 = 12;
+const int m_in1 = 12;
+const int m_in2 = 13;
 const int m_pwm = 15;
-uint8_t m_speed = 0;
-uint8_t m_direction = 0;
+uint8_t m_speed = 0; // current speed to go at
+uint8_t m_direction = 0; // current forward/backward
 
 // Servo
-Servo myservo(9);
+Servo myservo(14); // ledc channel 14
 const int s_pin = 14;
-uint8_t s_rotation = 0; // servo rotation
+uint8_t s_rotation = 90; // servo rotation
 
 // pwm properties
 const int __freq = 30000;
@@ -40,14 +45,12 @@ const int __resolution = 8; //Resolution 8, 10, 12, 15
 void operateMotor() {
   digitalWrite(m_in1, m_direction);
   digitalWrite(m_in2, !m_direction);
-
-  //analogWrite(m_pwm, m_speed);
   
   ledcWrite(__motorChannel, m_speed);
 }
 
 void operateServo() {
-  myservo.write(s_rotation);
+  myservo.write(s_rotation + cfg_s_offset);
 }
 
 void onMessageCallback(WebsocketsMessage message) {
@@ -59,25 +62,43 @@ void onMessageCallback(WebsocketsMessage message) {
 
   // steering
   switch (s[0]) {
-    case 's': {
+    case 's': { // normal steering
       if (s[2] == 'a')
-        s_rotation = 135;
+        s_rotation = 90 + cfg_s_angle;
       else if (s[2] == 'd')
-        s_rotation = 45;
+        s_rotation = 90 - cfg_s_angle;
       else if (s[2] == '0')
         s_rotation = 90;
       break;
     }
-    case 'v': {
+    case 'v': { // normal speed (forward/backward)
       if (s[2] == 'f') {
         m_direction = FORWARD;
-        m_speed = 255;
+        m_speed = cfg_m_speed;
       } else if (s[2] == 'b') {
         m_direction = BACKWARD;
-        m_speed = 255;
+        m_speed = cfg_m_speed;
       } else if (s[2] == '0') {
         m_speed = 1;
       } break;
+    }
+    case 'm': { // actual motor speed
+      cfg_m_speed = (uint8_t)atoi(s+2);
+      //Serial.print("set speed to: ");
+      //Serial.println(cfg_m_speed, DEC);
+      break;
+    }
+    case 'o': { // steering offset
+      cfg_s_offset = atoi(s+2);
+      //Serial.print("set offset to: ");
+      //Serial.println(cfg_s_offset, DEC);
+      break;
+    }
+    case 'a': { // servo max turn angle
+      cfg_s_angle = (uint8_t)atoi(s+2);
+      //Serial.print("set max angle to: ");
+      //Serial.println(cfg_s_angle, DEC);
+      break;
     }
   }
   /*
@@ -90,18 +111,21 @@ void onMessageCallback(WebsocketsMessage message) {
 
 // events are generally connection related
 void onEventsCallback(WebsocketsEvent event, String data) {
-  if(event == WebsocketsEvent::ConnectionOpened) {
-      Serial.println("Connnection Opened");
-  } else if(event == WebsocketsEvent::ConnectionClosed) {
-      Serial.println("Connnection Closed");
-  } else if(event == WebsocketsEvent::GotPing) {
-      Serial.println("Got a Ping!");
-  } else if(event == WebsocketsEvent::GotPong) {
-      Serial.println("Got a Pong!");
+  if(event == WebsocketsEvent::ConnectionClosed) {
+      Serial.print("Connnection Closed. Reconnecting");
+      tryConnectToWebsocketServer();
   }
 }
 
 WebsocketsClient client;
+void tryConnectToWebsocketServer() {
+  while(!client.connect(websocket_server_host, websocket_server_port, "/")){
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("Websocket Connected to host");
+}
+
 void setup() {
   Serial.begin(115200);
   Serial.println();
@@ -158,11 +182,6 @@ void setup() {
   Serial.println("Camera initialized");
 
   // servo init
-  ESP32PWM::allocateTimer(0);
-  ESP32PWM::allocateTimer(1);
-  ESP32PWM::allocateTimer(2);
-  ESP32PWM::allocateTimer(3);
-  myservo.setPeriodHertz(50);    // standard 50 hz servo
   myservo.attach(s_pin);
   
   /********************************************************
@@ -171,6 +190,9 @@ void setup() {
     
   *********************************************************/
   //Serial.print("Connecting to WiFi");
+
+  Serial.println("Delaying to avoid brownout (0)... (1s)");
+  delay(1000);
 
   WiFi.enableSTA(true); // wifi debug to serial
   WiFi.begin(ssid, password);
@@ -182,17 +204,16 @@ void setup() {
   
   Serial.println("WiFi connected");
 
+  Serial.println("Delaying to avoid brownout (1)... (1s)");
+  delay(1000);
+
   client.onMessage(onMessageCallback);
   client.onEvent(onEventsCallback);
   
-  while(!client.connect(websocket_server_host, websocket_server_port, "/")){
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("Websocket Connected to host");
+  tryConnectToWebsocketServer();
 
-
-  
+  Serial.println("Delaying to avoid brownout (2)... (1s)");
+  delay(1000);
 }
 
 void loop() {

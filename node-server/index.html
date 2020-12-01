@@ -2,15 +2,38 @@
     <head>
         <title>ESPKart</title>
     </head>
-    <body onload="promptControlStatus()">
-        <img src="">
-        <p id="status">Status: </p>
+    <!-- <body onload="promptControlStatus()"> -->
+    <body>
+        <!-- <p id="status">Status: </p> -->
+        <img src=""> <br> <br>
+
+        <label for="faddr">ESP Address:</label>
+        <input type="text" id="ip-input"> 
+        <button onclick="connect()">Connect</button>
+
+        <br> <br> <br>
+        <label for="fspeed">Speed:</label>
+        <input type="number" id="m-speed"> (155 to 240)
+
+        <br>
+        <label for="foffset">Steering offset:</label>
+        <input type="number" id="s-offset"> (-20 to 20)
+
+        <br>
+        <label for="fspeed">Max steering angle:</label>
+        <input type="number" id="s-angle"> (1 to 70)
+
+        <br> <br>
+        <button onclick="sendSettings()">Send settings</button>
+
         <script>
             var lastSteering = '0';
             var lastVelocity = '0';
 
             const img = document.querySelector('img');
-            const status = document.getElementById('status');
+            const m_speed = document.getElementById('m-speed');
+            const s_offset = document.getElementById('s-offset');
+            const s_angle = document.getElementById('s-angle');
 
             const WS_URL = 'ws:///192.168.1.200:8989';
             const ws = new WebSocket(WS_URL);
@@ -33,15 +56,7 @@
 
             ws.onclose = message => {
                 img.src = "";
-                //status.innerHTML = 
-            }
-
-            function promptControlStatus() {
-                while(!car_ip){
-                    var car_ip = prompt("Input address of car to control");
-                };
-
-                ws.send("esp-ip=" + car_ip);
+                status.innerHTML = "Websocket is closed";
             }
 
             document.body.addEventListener("keydown", function(event) {
@@ -81,6 +96,35 @@
                     lastVelocity = '0';
                 }
             });
+
+            function connect() {
+                val = document.getElementById('ip-input').value;
+                if (val != "")
+                    ws.send("esp-ip=" + val);
+            }
+
+            function sendSettings() {
+                if (m_speed.value >= 155 && m_speed.value <= 240) {
+                    let v = "m=" + m_speed.value;
+                    ws.send(v);
+
+                    console.log(v);
+                }
+
+                if (s_offset.value >= -20 && s_offset.value <= 20) {
+                    let v = "o=" + s_offset.value;
+                    ws.send(v);
+
+                    console.log(v);
+                }
+
+                if (s_angle.value >= 1 && s_angle.value <= 70) {
+                    let v = "a=" + s_angle.value
+                    ws.send(v);
+
+                    console.log(v);
+                }
+            }
 
         </script>
     </body>
